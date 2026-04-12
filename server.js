@@ -59,7 +59,7 @@ app.get(API_PATH + "/classify", async (req, res) => {
             message: "400 Bad Request: Missing or empty name parameter"
         });
     }
-    if (typeof name !== "string") {
+    if (typeof name !== "string" && !/^[a-zA-Z]+$/.test(name)) {
         return res.status(422).send({
             status: "error",
             message: "422 Unprocessable Entity: name is not a string"
