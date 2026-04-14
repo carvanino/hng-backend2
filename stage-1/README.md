@@ -2,13 +2,7 @@
 
 ## Overview
 
-This service exposes endpoints that classify a name using external prediction APIs.
-
-Primary endpoint:
-- `POST /api/profiles` (Genderize + Agify + Nationalize aggregation with in-memory persistence)
-
-Also available:
-- `GET /api/classify` (Genderize-only quick classification)
+This service stores generated name profiles in an in-memory database and exposes endpoints to create, retrieve, filter, and delete profiles.
 
 ## Base Path
 
@@ -18,31 +12,27 @@ Also available:
 
 ## Features
 
-- Multi-API integration with Genderize, Agify, and Nationalize
-- Aggregated profile response format
-- In-memory data persistence (`DATABASE` array)
+- Calls Genderize, Agify, and Nationalize APIs
+- Applies age-group and nationality classification logic
+- Stores profiles in-memory
 - Idempotent profile creation by normalized name
-- Validation and structured error responses
-- CORS enabled globally (`Access-Control-Allow-Origin: *`)
-- Rate limiting enabled
-- UUID v7 IDs
-- UTC ISO 8601 timestamps
+- Case-insensitive filtering for list endpoint
+- UUID v7 IDs and UTC ISO 8601 timestamps
+- CORS enabled (`Access-Control-Allow-Origin: *`)
 
 ## Endpoints
 
-### POST `/api/profiles`
+### 1) Create Profile
 
-Creates or returns a profile for the provided `name`.
+`POST /api/profiles`
 
-#### Request Body
+Request body:
 
 ```json
-{
-  "name": "ella"
-}
+{ "name": "ella" }
 ```
 
-#### Success Response (200, new profile)
+Success (`201 Created`):
 
 ```json
 {
@@ -62,75 +52,104 @@ Creates or returns a profile for the provided `name`.
 }
 ```
 
-#### Success Response (200, existing profile)
+Duplicate name (`200 OK`):
 
 ```json
 {
   "status": "success",
   "message": "Profile already exists",
+  "data": { "...": "existing profile" }
+}
+```
+
+### 2) Get Single Profile
+
+`GET /api/profiles/{id}`
+
+Success (`200 OK`):
+
+```json
+{
+  "status": "success",
   "data": {
     "id": "b3f9c1e2-7d4a-4c91-9c2a-1f0a8e5b6d12",
-    "name": "ella",
-    "gender": "female",
+    "name": "emmanuel",
+    "gender": "male",
     "gender_probability": 0.99,
     "sample_size": 1234,
-    "age": 46,
+    "age": 25,
     "age_group": "adult",
-    "country_id": "DRC",
+    "country_id": "NG",
     "country_probability": 0.85,
     "created_at": "2026-04-01T12:00:00Z"
   }
 }
 ```
 
-### GET `/api/classify?name={name}`
+### 3) Get All Profiles
 
-Returns Genderize prediction only.
+`GET /api/profiles`
 
-#### Success Response (200)
+Optional query params (case-insensitive values):
+- `gender`
+- `country_id`
+- `age_group`
+
+Example:
+
+```txt
+/api/profiles?gender=male&country_id=NG
+```
+
+Success (`200 OK`):
 
 ```json
 {
   "status": "success",
-  "data": {
-    "name": "ella",
-    "gender": "female",
-    "gender_probability": 0.99,
-    "sample_size": 1234
-  }
+  "count": 2,
+  "data": [
+    {
+      "id": "id-1",
+      "name": "emmanuel",
+      "gender": "male",
+      "age": 25,
+      "age_group": "adult",
+      "country_id": "NG"
+    },
+    {
+      "id": "id-2",
+      "name": "sarah",
+      "gender": "female",
+      "age": 28,
+      "age_group": "adult",
+      "country_id": "US"
+    }
+  ]
 }
 ```
 
-### GET `/api/`
+### 4) Delete Profile
 
-Health-style welcome endpoint.
+`DELETE /api/profiles/{id}`
 
-## Processing Rules
+Success: `204 No Content`
 
-- Genderize:
-  - `gender` -> `gender`
-  - `probability` -> `gender_probability`
-  - `count` -> `sample_size`
-  - If `gender === null` or `count === 0`: error
-- Agify:
-  - `age` -> `age`
-  - Age group mapping:
-    - `0-12`: `child`
-    - `13-19`: `teenager`
-    - `20-59`: `adult`
-    - `60+`: `senior`
-  - If `age === null`: error
-- Nationalize:
-  - Select highest `probability` country as `country_id`
-  - Keep selected probability as `country_probability`
-  - If country list is empty: error
+### Extra Endpoint (kept)
 
-## Validation Rules
+`GET /api/classify?name={name}`
 
-- Missing `name` or empty string -> `400`
-- Non-string `name` -> `422`
+Returns Genderize-only prediction.
 
-## Error Response Format
+## Classification Rules
+
+- Age group from Agify:
+  - `0-12` -> `child`
+  - `13-19` -> `teenager`
+  - `20-59` -> `adult`
+  - `60+` -> `senior`
+- Nationality: choose country with highest probability from Nationalize
+
+## Validation and Errors
 
 All errors use:
 
@@ -138,49 +157,45 @@ All errors use:
 { "status": "error", "message": "<error message>" }
 ```
 
-Common statuses:
-- `400` bad request
-- `422` unprocessable entity
-- `404` no prediction data available
-- `500` server/config errors
-- `502` external API fetch failure
-- `429` rate limit exceeded
+Status rules:
+- `400`: Missing or empty name
+- `422`: Invalid type
+- `404`: Profile not found
+- `500`: Internal server failure
+- `502`: Upstream invalid response
+
+Edge-case upstream errors:
+- Genderize invalid (`gender: null` or `count: 0`) ->
+  - `{ "status": "error", "message": "Genderize returned an invalid response" }`
+- Agify invalid (`age: null`) ->
+  - `{ "status": "error", "message": "Agify returned an invalid response" }`
+- Nationalize invalid (no country data) ->
+  - `{ "status": "error", "message": "Nationalize returned an invalid response" }`
 
 ## Setup
 
-### Install dependencies
+Install dependencies:
 
 ```bash
 npm install
 ```
 
-### Environment Variables
-
-Create `.env` in `stage-1`:
+Create `.env`:
 
 ```env
-PORT=3000
+PORT=3002
 GENDERIZE_URL=https://api.genderize.io
 AGIFY_URL=https://api.agify.io
 NATIONALIZE_URL=https://api.nationalize.io
 ```
 
-## Run
-
-### Development
+Run:
 
 ```bash
-npm run dev
-```
-
-### Production
-
-```bash
-node server.js
+npm start
 ```
 
 ## Notes
 
-- Persistence is in-memory for this stage and resets when the server restarts.
-- Name matching for idempotency uses normalized lowercase trimmed name.
-- Response time depends on external API latency.
+- Data persistence is in-memory and resets on restart.
+- `name` is normalized (trimmed + lowercase) for idempotency.

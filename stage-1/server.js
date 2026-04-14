@@ -46,7 +46,7 @@ const validateName = (name) => {
   }
 
   if (typeof name !== "string") {
-    throw new ApiError(422, "name must be a string");
+    throw new ApiError(422, "Invalid type");
   }
 
   const normalized = name.trim().toLowerCase();
@@ -57,9 +57,13 @@ const validateName = (name) => {
   return normalized;
 };
 
-const makeAPIRequest = async (url, name) => {
+const invalidExternalResponse = (externalApi) => {
+  throw new ApiError(502, `${externalApi} returned an invalid response`);
+};
+
+const makeAPIRequest = async (url, name, externalApi) => {
   if (!url) {
-    throw new ApiError(500, "External API URL is not configured");
+    throw new ApiError(500, "Internal server error");
   }
 
   try {
@@ -68,8 +72,8 @@ const makeAPIRequest = async (url, name) => {
       params: { name },
     });
 
-    if (response.status !== 200) {
-      throw new ApiError(502, "Failed to fetch data from external API");
+    if (response.status !== 200 || !response.data || typeof response.data !== "object") {
+      invalidExternalResponse(externalApi);
     }
 
     return response.data;
@@ -78,15 +82,15 @@ const makeAPIRequest = async (url, name) => {
       throw error;
     }
 
-    throw new ApiError(502, "Failed to fetch data from external API");
+    invalidExternalResponse(externalApi);
   }
 };
 
 const getGenderPrediction = async (name) => {
-  const response = await makeAPIRequest(GENDERIZE_URL, name);
+  const response = await makeAPIRequest(GENDERIZE_URL, name, "Genderize");
 
   if (response.gender === null || Number(response.count) === 0) {
-    throw new ApiError(404, "No gender prediction available for the provided name");
+    invalidExternalResponse("Genderize");
   }
 
   return {
@@ -97,10 +101,10 @@ const getGenderPrediction = async (name) => {
 };
 
 const getAgePrediction = async (name) => {
-  const response = await makeAPIRequest(AGIFY_URL, name);
+  const response = await makeAPIRequest(AGIFY_URL, name, "Agify");
 
   if (response.age === null) {
-    throw new ApiError(404, "No age prediction available for the provided name");
+    invalidExternalResponse("Agify");
   }
 
   return {
@@ -110,11 +114,11 @@ const getAgePrediction = async (name) => {
 };
 
 const getCountryPrediction = async (name) => {
-  const response = await makeAPIRequest(NATIONALIZE_URL, name);
+  const response = await makeAPIRequest(NATIONALIZE_URL, name, "Nationalize");
   const countries = Array.isArray(response.country) ? response.country : [];
 
   if (countries.length === 0) {
-    throw new ApiError(404, "No nationality prediction available for the provided name");
+    invalidExternalResponse("Nationalize");
   }
 
   const topCountry = countries.reduce((best, current) => {
@@ -130,6 +134,9 @@ const getCountryPrediction = async (name) => {
   };
 };
 
+const findProfileByName = (name) => DATABASE.find((item) => item.name === name);
+const findProfileIndexById = (id) => DATABASE.findIndex((item) => item.id === id);
+
 const sendError = (res, error) => {
   if (error instanceof ApiError) {
     return res.status(error.status).send({
@@ -143,8 +150,6 @@ const sendError = (res, error) => {
     message: "Internal server error",
   });
 };
-
-const findProfileByName = (name) => DATABASE.find((item) => item.name === name);
 
 app.get(API_PATH + "/classify", async (req, res) => {
   try {
@@ -193,13 +198,82 @@ app.post(API_PATH + "/profiles", async (req, res) => {
 
     DATABASE.push(profile);
 
-    return res.status(200).send({
+    return res.status(201).send({
       status: "success",
       data: profile,
     });
   } catch (error) {
     return sendError(res, error);
   }
+});
+
+app.get(API_PATH + "/profiles", (req, res) => {
+  const { gender, country_id: countryId, age_group: ageGroup } = req.query;
+
+  const filters = {
+    gender: typeof gender === "string" ? gender.toLowerCase() : undefined,
+    country_id: typeof countryId === "string" ? countryId.toLowerCase() : undefined,
+    age_group: typeof ageGroup === "string" ? ageGroup.toLowerCase() : undefined,
+  };
+
+  const filteredProfiles = DATABASE.filter((profile) => {
+    if (filters.gender && profile.gender.toLowerCase() !== filters.gender) {
+      return false;
+    }
+
+    if (filters.country_id && profile.country_id.toLowerCase() !== filters.country_id) {
+      return false;
+    }
+
+    if (filters.age_group && profile.age_group.toLowerCase() !== filters.age_group) {
+      return false;
+    }
+
+    return true;
+  }).map((profile) => ({
+    id: profile.id,
+    name: profile.name,
+    gender: profile.gender,
+    age: profile.age,
+    age_group: profile.age_group,
+    country_id: profile.country_id,
+  }));
+
+  return res.status(200).send({
+    status: "success",
+    count: filteredProfiles.length,
+    data: filteredProfiles,
+  });
+});
+
+app.get(API_PATH + "/profiles/:id", (req, res) => {
+  const profile = DATABASE.find((item) => item.id === req.params.id);
+
+  if (!profile) {
+    return res.status(404).send({
+      status: "error",
+      message: "Profile not found",
+    });
+  }
+
+  return res.status(200).send({
+    status: "success",
+    data: profile,
+  });
+});
+
+app.delete(API_PATH + "/profiles/:id", (req, res) => {
+  const index = findProfileIndexById(req.params.id);
+
+  if (index === -1) {
+    return res.status(404).send({
+      status: "error",
+      message: "Profile not found",
+    });
+  }
+
+  DATABASE.splice(index, 1);
+  return res.status(204).send();
 });
 
 app.get(API_PATH + "/", async (req, res) => {
