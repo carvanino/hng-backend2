@@ -1,0 +1,19 @@
+{
+  "name": "hng-backend-gateway",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node gateway.js",
+    "dev": "concurrently -n gateway,stage-0,stage-1 -c blue,green,yellow \"npm run start:gateway\" \"npm run start:stage-0\" \"npm run start:stage-1\"",
+    "start:gateway": "node gateway.js",
+    "start:stage-0": "PORT=3001 npm --prefix stage-0 start",
+    "start:stage-1": "PORT=3002 npm --prefix stage-1 start"
+  },
+  "dependencies": {
+    "concurrently": "^9.2.1",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "http-proxy-middleware": "^3.0.5"
+  }
+}
