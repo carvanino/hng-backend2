@@ -5,10 +5,12 @@
   "type": "module",
   "scripts": {
     "start": "node gateway.js",
-    "dev": "concurrently -n gateway,stage-0,stage-1 -c blue,green,yellow \"npm run start:gateway\" \"npm run start:stage-0\" \"npm run start:stage-1\"",
+    "dev": "concurrently -n gateway,stage-0,stage-1,stage-2 -c blue,green,yellow,magenta \"npm run start:gateway\" \"npm run start:stage-0\" \"npm run start:stage-1\" \"npm run start:stage-2\"",
     "start:gateway": "node gateway.js",
     "start:stage-0": "PORT=3001 npm --prefix stage-0 start",
-    "start:stage-1": "PORT=3002 npm --prefix stage-1 start"
+    "start:stage-1": "PORT=3002 npm --prefix stage-1 start",
+    "start:stage-2": "PORT=3003 npm --prefix stage-2 start",
+    "seed:stage-2": "npm --prefix stage-2 run seed"
   },
   "dependencies": {
     "concurrently": "^9.2.1",

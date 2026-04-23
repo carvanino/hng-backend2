@@ -5,6 +5,7 @@ import { createProxyMiddleware } from "http-proxy-middleware";
 const GATEWAY_PORT = process.env.GATEWAY_PORT || 3000;
 const STAGE0_TARGET = process.env.STAGE0_TARGET || "http://localhost:3001";
 const STAGE1_TARGET = process.env.STAGE1_TARGET || "http://localhost:3002";
+const STAGE2_TARGET = process.env.STAGE2_TARGET || "http://localhost:3003";
 
 const app = express();
 app.use(cors());
@@ -20,44 +21,30 @@ app.get("/", (req, res) => {
     routes: {
       stage0: "/stage-0",
       stage1: "/stage-1",
+      stage2: "/stage-2",
       health: "/health",
     },
   });
 });
 
-app.use(
-  "/stage-0",
+const proxy = (target, prefix) =>
   createProxyMiddleware({
-    target: STAGE0_TARGET,
+    target,
     changeOrigin: true,
-    pathRewrite: {
-      '^/stage-0': '', // Remove /stage-0 prefix when forwarding
-    },
+    pathRewrite: { [`^/${prefix}`]: "" },
     onError: (err, req, res) => {
-      console.log(err);
-      console.error('Proxy error for stage-0:', err.message);
-      res.status(502).json({ error: 'stage-0 server unavailable' });
-    }
-  })
-);
+      console.error(`Proxy error for ${prefix}:`, err.message);
+      res.status(502).json({ error: `${prefix} server unavailable` });
+    },
+  });
 
-app.use(
-  "/stage-1",
-  createProxyMiddleware({
-    target: STAGE1_TARGET,
-    changeOrigin: true,
-    pathRewrite: {
-      '^/stage-1': '', // Remove /stage-1 prefix when forwarding
-    },
-    onError: (err, req, res) => {
-      console.error('Proxy error for stage-1:', err.message);
-      res.status(502).json({ error: 'stage-1 server unavailable' });
-    }
-  })
-);
+app.use("/stage-0", proxy(STAGE0_TARGET, "stage-0"));
+app.use("/stage-1", proxy(STAGE1_TARGET, "stage-1"));
+app.use("/stage-2", proxy(STAGE2_TARGET, "stage-2"));
 
 app.listen(GATEWAY_PORT, () => {
   console.log(`Gateway server running on port ${GATEWAY_PORT}`);
-  console.log(`stage-0 target: ${STAGE0_TARGET}`);
-  console.log(`stage-1 target: ${STAGE1_TARGET}`);
+  console.log(`stage-0 → ${STAGE0_TARGET}`);
+  console.log(`stage-1 → ${STAGE1_TARGET}`);
+  console.log(`stage-2 → ${STAGE2_TARGET}`);
 });
