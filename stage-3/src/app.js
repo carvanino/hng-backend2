@@ -7,6 +7,7 @@ import "dotenv/config";
 
 import { requestLogger } from "./middleware/logger.js";
 import { globalLimiter } from "./middleware/rateLimiter.js";
+import authRouter from "./auth/router.js";
 import profilesRouter from "./profiles/router.js";
 
 const app = express();
@@ -26,6 +27,8 @@ app.use(globalLimiter);
 app.get("/api/", (_req, res) =>
   res.json({ status: "success", message: "Insighta Labs+ API v3" })
 );
+
+app.use('/auth', authRouter);
 
 // ── Feature routers ─────────────────────────────────────────────────────────
 app.use("/api/profiles", profilesRouter);

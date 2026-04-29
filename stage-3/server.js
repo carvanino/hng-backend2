@@ -7,7 +7,7 @@ import "dotenv/config";
 import app from "./src/app.js";
 import { initDB } from "./src/db/index.js";
 
-const PORT = process.env.PORT ?? 3003;
+const PORT = process.env.PORT ?? 3004;
 
 const server = createServer(app);
 
