@@ -30,7 +30,7 @@ app.get("/health", (_req, res) =>
 
 app.use("/auth", authLimiter, authRouter);
 
-app.use("/api/*", apiLimiter, apiVersion, authenticate);
+app.use("/api", apiLimiter, apiVersion, authenticate);
 
 
 // ── Feature routers ─────────────────────────────────────────────────────────
