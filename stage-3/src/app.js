@@ -9,6 +9,8 @@ import { requestLogger } from "./middleware/logger.js";
 import { globalLimiter } from "./middleware/rateLimiter.js";
 import authRouter from "./auth/router.js";
 import profilesRouter from "./profiles/router.js";
+import apiVersion from "./middleware/apiVersion.js";
+import authenticate from "./middleware/authenticate.js";
 
 const app = express();
 
@@ -24,11 +26,14 @@ app.use(requestLogger);
 app.use(globalLimiter);
 
 // ── Health check ────────────────────────────────────────────────────────────
-app.get("/api/", (_req, res) =>
+app.get("/health", (_req, res) =>
   res.json({ status: "success", message: "Insighta Labs+ API v3" })
 );
 
 app.use('/auth', authRouter);
+
+app.use("/api/*", apiVersion, authenticate);
+
 
 // ── Feature routers ─────────────────────────────────────────────────────────
 app.use("/api/profiles", profilesRouter);

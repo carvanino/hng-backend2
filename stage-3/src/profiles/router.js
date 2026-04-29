@@ -10,11 +10,9 @@ import {
   listProfiles,
   getProfileById,
   createProfile,
-  deleteProfile,
-  buildQuery,
+  deleteProfile
 } from "./service.js";
-import { query } from "../db/index.js";
-import { formatProfile } from "../utils.js";
+import authorize from "../middleware/authorize.js";
 
 const router = Router();
 
@@ -64,7 +62,7 @@ router.get("/search", async (req, res) => {
     }
 
     const merged = { ...nlpFilters };
-    if (page  !== undefined) merged.page  = page;
+    if (page !== undefined) merged.page = page;
     if (limit !== undefined) merged.limit = limit;
 
     const { rows, total, page: pageNum, limit: limitNum } =
@@ -72,10 +70,10 @@ router.get("/search", async (req, res) => {
 
     return res.status(200).json({
       status: "success",
-      page:  pageNum,
+      page: pageNum,
       limit: limitNum,
       total,
-      data:  rows,
+      data: rows,
     });
   } catch (err) {
     return sendError(res, err);
@@ -83,15 +81,15 @@ router.get("/search", async (req, res) => {
 });
 
 // ── POST /api/profiles ────────────────────────────────────────────────────────
-router.post("/", async (req, res) => {
+router.post("/", authorize('admin'), async (req, res) => {
   try {
     const { profile, created } = await createProfile(req.body?.name);
 
     if (!created) {
       return res.status(200).json({
-        status:  "success",
+        status: "success",
         message: "Profile already exists",
-        data:    profile,
+        data: profile,
       });
     }
 
@@ -112,7 +110,7 @@ router.get("/:id", async (req, res) => {
 });
 
 // ── DELETE /api/profiles/:id ──────────────────────────────────────────────────
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", authorize('admin'), async (req, res) => {
   try {
     await deleteProfile(req.params.id);
     return res.status(204).send();
