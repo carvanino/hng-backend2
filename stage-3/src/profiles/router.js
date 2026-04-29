@@ -10,7 +10,8 @@ import {
   listProfiles,
   getProfileById,
   createProfile,
-  deleteProfile
+  deleteProfile,
+  exportProfiles,
 } from "./service.js";
 import authorize from "../middleware/authorize.js";
 
@@ -19,14 +20,16 @@ const router = Router();
 // ── GET /api/profiles ────────────────────────────────────────────────────────
 router.get("/", async (req, res) => {
   try {
-    const { rows, total, page, limit } = await listProfiles(req.query);
+    const { rows, total, page, limit, total_pages, links } = await listProfiles(req.query, req.path);
 
     return res.status(200).json({
       status: "success",
       page,
       limit,
       total,
+      total_pages,
       data: rows,
+      links,
     });
   } catch (err) {
     return sendError(res, err);
@@ -34,12 +37,46 @@ router.get("/", async (req, res) => {
 });
 
 // ── GET /api/profiles/export ─────────────────────────────────────────────────
-// Placeholder — full CSV implementation added in Stage 3 API updates
-router.get("/export", async (_req, res) => {
-  return res.status(501).json({
-    status: "error",
-    message: "CSV export will be available in Stage 3",
-  });
+router.get("/export", async (req, res) => {
+  try {
+    const { format = "csv" } = req.query;
+
+    if (format !== "csv") {
+      return res.status(400).json({ status: "error", message: "Only format=csv is supported" });
+    }
+
+    const rows = await exportProfiles(req.query);
+
+    const columns = [
+      "id", "name", "gender", "gender_probability",
+      "age", "age_group", "country_id", "country_name",
+      "country_probability", "created_at",
+    ];
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", `attachment; filename="profiles_${timestamp}.csv"`);
+
+    // Header row
+    res.write(columns.join(",") + "\n");
+
+    // Data rows
+    for (const row of rows) {
+      const line = columns.map((col) => {
+        const val = row[col] ?? "";
+        // Wrap in quotes if value contains comma, quote, or newline
+        const str = String(val);
+        return str.includes(",") || str.includes('"') || str.includes("\n")
+          ? `"${str.replace(/"/g, '""')}`
+          : str;
+      });
+      res.write(line.join(",") + "\n");
+    }
+
+    res.end();
+  } catch (err) {
+    return sendError(res, err);
+  }
 });
 
 // ── GET /api/profiles/search ──────────────────────────────────────────────────
@@ -65,15 +102,17 @@ router.get("/search", async (req, res) => {
     if (page !== undefined) merged.page = page;
     if (limit !== undefined) merged.limit = limit;
 
-    const { rows, total, page: pageNum, limit: limitNum } =
-      await listProfiles(merged);
+    const { rows, total, page: pageNum, limit: limitNum, total_pages, links } =
+      await listProfiles(merged, req.path, req.query);
 
     return res.status(200).json({
       status: "success",
       page: pageNum,
       limit: limitNum,
       total,
+      total_pages,
       data: rows,
+      links,
     });
   } catch (err) {
     return sendError(res, err);

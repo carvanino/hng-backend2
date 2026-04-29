@@ -13,40 +13,40 @@ import { ApiError, classifyAgeGroup, formatProfile } from "../utils.js";
 
 // ── ISO-3166-1 alpha-2 → full country name ──────────────────────────────────
 export const ISO_TO_NAME = {
-  NG: "Nigeria",             GH: "Ghana",               BJ: "Benin",
-  TG: "Togo",                CI: "Côte d'Ivoire",        SN: "Senegal",
-  ML: "Mali",                GW: "Guinea-Bissau",        GQ: "Equatorial Guinea",
-  GN: "Guinea",              SL: "Sierra Leone",         LR: "Liberia",
-  GM: "Gambia",              BF: "Burkina Faso",         NE: "Niger",
-  MR: "Mauritania",          CV: "Cape Verde",           ET: "Ethiopia",
-  KE: "Kenya",               TZ: "Tanzania",             UG: "Uganda",
-  RW: "Rwanda",              BI: "Burundi",              SO: "Somalia",
-  DJ: "Djibouti",            ER: "Eritrea",              CM: "Cameroon",
-  CF: "Central African Republic", TD: "Chad",            GA: "Gabon",
-  CG: "Republic of Congo",   CD: "Democratic Republic of Congo",
+  NG: "Nigeria", GH: "Ghana", BJ: "Benin",
+  TG: "Togo", CI: "Côte d'Ivoire", SN: "Senegal",
+  ML: "Mali", GW: "Guinea-Bissau", GQ: "Equatorial Guinea",
+  GN: "Guinea", SL: "Sierra Leone", LR: "Liberia",
+  GM: "Gambia", BF: "Burkina Faso", NE: "Niger",
+  MR: "Mauritania", CV: "Cape Verde", ET: "Ethiopia",
+  KE: "Kenya", TZ: "Tanzania", UG: "Uganda",
+  RW: "Rwanda", BI: "Burundi", SO: "Somalia",
+  DJ: "Djibouti", ER: "Eritrea", CM: "Cameroon",
+  CF: "Central African Republic", TD: "Chad", GA: "Gabon",
+  CG: "Republic of Congo", CD: "Democratic Republic of Congo",
   ST: "São Tomé and Príncipe",
-  ZA: "South Africa",        AO: "Angola",               MZ: "Mozambique",
-  ZW: "Zimbabwe",            ZM: "Zambia",               MW: "Malawi",
-  NA: "Namibia",             BW: "Botswana",             LS: "Lesotho",
-  SZ: "Eswatini",            MG: "Madagascar",           KM: "Comoros",
-  MU: "Mauritius",           SC: "Seychelles",           EG: "Egypt",
-  MA: "Morocco",             DZ: "Algeria",              TN: "Tunisia",
-  LY: "Libya",               SD: "Sudan",                SS: "South Sudan",
-  US: "United States",       GB: "United Kingdom",       FR: "France",
-  DE: "Germany",             IT: "Italy",                ES: "Spain",
-  PT: "Portugal",            NL: "Netherlands",          BE: "Belgium",
-  CH: "Switzerland",         AT: "Austria",              SE: "Sweden",
-  NO: "Norway",              DK: "Denmark",              FI: "Finland",
-  PL: "Poland",              RU: "Russia",               UA: "Ukraine",
-  TR: "Turkey",              GR: "Greece",               BR: "Brazil",
-  AR: "Argentina",           CO: "Colombia",             CL: "Chile",
-  PE: "Peru",                MX: "Mexico",               CA: "Canada",
-  AU: "Australia",           NZ: "New Zealand",          IN: "India",
-  CN: "China",               JP: "Japan",                KR: "South Korea",
-  ID: "Indonesia",           MY: "Malaysia",             PH: "Philippines",
-  VN: "Vietnam",             TH: "Thailand",             PK: "Pakistan",
-  BD: "Bangladesh",          SA: "Saudi Arabia",         AE: "United Arab Emirates",
-  IR: "Iran",                IQ: "Iraq",                 IL: "Israel",
+  ZA: "South Africa", AO: "Angola", MZ: "Mozambique",
+  ZW: "Zimbabwe", ZM: "Zambia", MW: "Malawi",
+  NA: "Namibia", BW: "Botswana", LS: "Lesotho",
+  SZ: "Eswatini", MG: "Madagascar", KM: "Comoros",
+  MU: "Mauritius", SC: "Seychelles", EG: "Egypt",
+  MA: "Morocco", DZ: "Algeria", TN: "Tunisia",
+  LY: "Libya", SD: "Sudan", SS: "South Sudan",
+  US: "United States", GB: "United Kingdom", FR: "France",
+  DE: "Germany", IT: "Italy", ES: "Spain",
+  PT: "Portugal", NL: "Netherlands", BE: "Belgium",
+  CH: "Switzerland", AT: "Austria", SE: "Sweden",
+  NO: "Norway", DK: "Denmark", FI: "Finland",
+  PL: "Poland", RU: "Russia", UA: "Ukraine",
+  TR: "Turkey", GR: "Greece", BR: "Brazil",
+  AR: "Argentina", CO: "Colombia", CL: "Chile",
+  PE: "Peru", MX: "Mexico", CA: "Canada",
+  AU: "Australia", NZ: "New Zealand", IN: "India",
+  CN: "China", JP: "Japan", KR: "South Korea",
+  ID: "Indonesia", MY: "Malaysia", PH: "Philippines",
+  VN: "Vietnam", TH: "Thailand", PK: "Pakistan",
+  BD: "Bangladesh", SA: "Saudi Arabia", AE: "United Arab Emirates",
+  IR: "Iran", IQ: "Iraq", IL: "Israel",
 };
 
 // ── External API helpers ────────────────────────────────────────────────────
@@ -98,8 +98,8 @@ export const getCountryPrediction = async (name) => {
     !best || c.probability > best.probability ? c : best, null
   );
   return {
-    country_id:          top.country_id,
-    country_name:        ISO_TO_NAME[top.country_id] ?? top.country_id,
+    country_id: top.country_id,
+    country_name: ISO_TO_NAME[top.country_id] ?? top.country_id,
     country_probability: top.probability,
   };
 };
@@ -107,9 +107,9 @@ export const getCountryPrediction = async (name) => {
 // ── Query builder ────────────────────────────────────────────────────────────
 
 const VALID_SORT_BY = new Set(["age", "created_at", "gender_probability"]);
-const VALID_ORDER   = new Set(["asc", "desc"]);
-const VALID_GENDER  = new Set(["male", "female"]);
-const VALID_GROUP   = new Set(["child", "teenager", "adult", "senior"]);
+const VALID_ORDER = new Set(["asc", "desc"]);
+const VALID_GENDER = new Set(["male", "female"]);
+const VALID_GROUP = new Set(["child", "teenager", "adult", "senior"]);
 
 /**
  * Validate + compile query params (or pre-parsed NLP filters) into SQL
@@ -128,18 +128,18 @@ export function buildQuery(rawQuery) {
     min_gender_probability,
     min_country_probability,
     sort_by = "created_at",
-    order   = "asc",
-    page    = "1",
-    limit   = "10",
+    order = "asc",
+    page = "1",
+    limit = "10",
   } = rawQuery;
 
   if (!VALID_SORT_BY.has(sort_by)) throw new ApiError(400, "Invalid query parameters");
-  if (!VALID_ORDER.has(order))     throw new ApiError(400, "Invalid query parameters");
+  if (!VALID_ORDER.has(order)) throw new ApiError(400, "Invalid query parameters");
 
-  const pageNum  = parseInt(page,  10);
+  const pageNum = parseInt(page, 10);
   const limitNum = parseInt(limit, 10);
 
-  if (!Number.isFinite(pageNum)  || pageNum  < 1)           throw new ApiError(422, "Invalid query parameters");
+  if (!Number.isFinite(pageNum) || pageNum < 1) throw new ApiError(422, "Invalid query parameters");
   if (!Number.isFinite(limitNum) || limitNum < 1 || limitNum > 50) throw new ApiError(422, "Invalid query parameters");
 
   const conditions = [];
@@ -194,7 +194,7 @@ export function buildQuery(rawQuery) {
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 
   const countSql = `SELECT COUNT(*) FROM profiles ${where}`;
-  const dataSql  = `
+  const dataSql = `
     SELECT * FROM profiles
     ${where}
     ORDER BY ${sort_by} ${order.toUpperCase()}
@@ -207,10 +207,35 @@ export function buildQuery(rawQuery) {
     countSql,
     dataSql,
     countParams: baseParams,
-    dataParams:  [...baseParams, limitNum, offset],
-    page:        pageNum,
-    limit:       limitNum,
+    dataParams: [...baseParams, limitNum, offset],
+    page: pageNum,
+    limit: limitNum,
   };
+}
+
+class Links {
+  constructor(baseUrl, query, current, limit, totalPages) {
+    this.baseUrl = baseUrl.split('?')[0]; // Strip existing query string
+    this.query = query;
+    this.current = current;
+    this.limit = limit;
+    this.totalPages = totalPages;
+  }
+
+  getLinks() {
+    const buildUrl = (p) => {
+      const params = new URLSearchParams(this.query);
+      params.set('page', p);
+      params.set('limit', this.limit);
+      return `${this.baseUrl}?${params.toString()}`;
+    };
+
+    return {
+      self: buildUrl(this.current),
+      next: this.current < this.totalPages ? buildUrl(this.current + 1) : null,
+      prev: this.current > 1 ? buildUrl(this.current - 1) : null,
+    };
+  }
 }
 
 // ── DB operations ────────────────────────────────────────────────────────────
@@ -218,19 +243,23 @@ export function buildQuery(rawQuery) {
 /**
  * Fetch a paginated + filtered list of profiles.
  */
-export async function listProfiles(rawQuery) {
+export async function listProfiles(rawQuery, baseUrl = '/api/profiles', linkQuery = null) {
   const { countSql, dataSql, countParams, dataParams, page, limit } =
     buildQuery(rawQuery);
 
   const [countResult, dataResult] = await Promise.all([
     query(countSql, countParams),
-    query(dataSql,  dataParams),
+    query(dataSql, dataParams),
   ]);
 
-  const total       = parseInt(countResult.rows[0].count, 10);
+  const total = parseInt(countResult.rows[0].count, 10);
   const total_pages = Math.ceil(total / limit);
 
-  return { rows: dataResult.rows.map(formatProfile), total, page, limit, total_pages };
+  // Use linkQuery for URL building if provided (e.g. search passes req.query to preserve `q`)
+  const linksObj = new Links(baseUrl, linkQuery ?? rawQuery, page, limit, total_pages);
+  const links = linksObj.getLinks();
+
+  return { rows: dataResult.rows.map(formatProfile), total, page, limit, total_pages, links };
 }
 
 /**
@@ -275,13 +304,30 @@ export async function createProfile(rawName) {
      RETURNING *`,
     [
       id, name,
-      genderData.gender,   genderData.gender_probability,
-      ageData.age,         ageData.age_group,
+      genderData.gender, genderData.gender_probability,
+      ageData.age, ageData.age_group,
       countryData.country_id, countryData.country_name, countryData.country_probability,
     ]
   );
 
   return { profile: formatProfile(result.rows[0]), created: true };
+}
+
+/**
+ * Fetch all matching profiles for CSV export — no pagination.
+ * Reuses buildQuery for WHERE clause then runs an unbounded query.
+ */
+export async function exportProfiles(rawQuery) {
+  const { sort_by = "created_at", order = "asc" } = rawQuery;
+
+  // buildQuery requires valid page/limit — we only need the WHERE clause + params
+  const { countSql, countParams } = buildQuery({ ...rawQuery, page: "1", limit: "50" });
+
+  const where = countSql.replace("SELECT COUNT(*) FROM profiles", "").trim();
+  const sql = `SELECT * FROM profiles ${where} ORDER BY ${sort_by} ${order.toUpperCase()}`;
+
+  const result = await query(sql, countParams);
+  return result.rows.map(formatProfile);
 }
 
 /**
