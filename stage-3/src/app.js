@@ -6,7 +6,7 @@ import cors from "cors";
 import "dotenv/config";
 
 import { requestLogger } from "./middleware/logger.js";
-import { globalLimiter } from "./middleware/rateLimiter.js";
+import { authLimiter, apiLimiter } from "./middleware/rateLimiter.js";
 import authRouter from "./auth/router.js";
 import profilesRouter from "./profiles/router.js";
 import apiVersion from "./middleware/apiVersion.js";
@@ -22,17 +22,15 @@ app.set("trust proxy", 1);
 // ── Logging ─────────────────────────────────────────────────────────────────
 app.use(requestLogger);
 
-// ── Global rate limiter ─────────────────────────────────────────────────────
-app.use(globalLimiter);
 
 // ── Health check ────────────────────────────────────────────────────────────
 app.get("/health", (_req, res) =>
   res.json({ status: "success", message: "Insighta Labs+ API v3" })
 );
 
-app.use('/auth', authRouter);
+app.use("/auth", authLimiter, authRouter);
 
-app.use("/api/*", apiVersion, authenticate);
+app.use("/api/*", apiLimiter, apiVersion, authenticate);
 
 
 // ── Feature routers ─────────────────────────────────────────────────────────
