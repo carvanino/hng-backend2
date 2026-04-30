@@ -89,6 +89,9 @@ The server will initialise all database tables on startup via `initDB()`.
 
 ## Authentication Flow
 
+### Overview
+All access to `/api/*` endpoints requires a valid JWT access token. Tokens are issued after GitHub OAuth login and sent on every request as `Authorization: Bearer <access_token>` (CLI) or as an HTTP-only cookie (web portal).
+
 ### Web Portal Flow
 
 ```
@@ -99,45 +102,52 @@ GitHub → GET /auth/github/callback?code=...&state=...
 Backend validates state → exchanges code for GitHub token
        → fetches GitHub user → upserts user in DB
        → issues access token + refresh token
-       ← returns tokens in response body (web uses HTTP-only cookies)
+       → sets HTTP-only cookies
+       ← redirects to /dashboard
 ```
 
-### CLI Flow (PKCE)
+### CLI Flow (Backend-Routed)
 
 ```
-CLI generates:
-  code_verifier  (random secret, stays in CLI)
-  code_challenge (BASE64URL(SHA256(code_verifier)))
-  state          (CSRF protection)
+CLI starts a local HTTP server on port 4242
+CLI opens → ${BACKEND_URL}/auth/github?cli_port=4242
 
-CLI opens browser → GitHub OAuth page (with code_challenge)
-GitHub → CLI local callback server?code=...&state=...
+Backend encodes cli_port into state, redirects to GitHub OAuth
+GitHub → GET /auth/github/callback?code=...&state=...
 
-CLI validates state
-CLI sends { code, code_verifier } → POST /auth/github/callback
+Backend exchanges code with GitHub, creates/updates user, issues tokens
+Backend decodes cli_port from state
+Backend redirects → http://localhost:4242/callback?access_token=...&refresh_token=...
 
-Backend exchanges code + code_verifier with GitHub
-      → issues tokens → CLI stores in ~/.insighta/credentials.json
+CLI receives tokens, saves to ~/.insighta/credentials.json
+CLI prints: Logged in as @username
 ```
 
 ---
 
-## Token Handling
+## Token Lifecycle
 
 | Token | Expiry | Storage | Purpose |
 |---|---|---|---|
-| Access token | 3 minutes | Client memory / CLI file | Authenticates API requests |
+| Access token | 3 minutes | CLI file / HTTP-only cookie | Authenticates API requests |
 | Refresh token | 5 minutes | PostgreSQL `refresh_tokens` table | Issues new token pairs |
 
-**Rotation:** Every call to `POST /auth/refresh` invalidates the old refresh token immediately and issues a brand new pair. This means stolen refresh tokens have a very short window of usefulness.
+**Token Flow:**
+1. Login → receive `access_token` (3 min) + `refresh_token` (5 min)
+2. Use `access_token` on every `/api/*` request via `Authorization: Bearer` header
+3. When `access_token` expires → call `POST /auth/refresh` with `refresh_token` to get a new pair
+4. Old refresh token is immediately invalidated (rotation) — new pair issued
+5. On logout → `POST /auth/logout` deletes the refresh token from DB
 
-**Revocation:** `POST /auth/logout` deletes the refresh token from the DB. The access token expires naturally within 3 minutes — there is no server-side access token blacklist.
+**Rotation:** Every `POST /auth/refresh` invalidates the old refresh token immediately and issues a new pair.
 
-**is_active check:** On every authenticated request, the backend queries the DB to confirm the user's `is_active` flag is `true`. If an admin deactivates an account, that user is blocked immediately — they don't need to wait for their JWT to expire.
+**Revocation:** `POST /auth/logout` deletes the refresh token from the DB. The access token expires naturally — no server-side blacklist.
+
+**is_active check:** On every authenticated request, the backend queries the DB to confirm `is_active = true`. Deactivated users are blocked immediately.
 
 ---
 
-## Role Enforcement
+## Role-Based Access Control (RBAC)
 
 Two roles exist: `admin` and `analyst`. Default on signup is `analyst`.
 
@@ -146,17 +156,52 @@ Two roles exist: `admin` and `analyst`. Default on signup is `analyst`.
 | `admin` | Full access — create profiles, delete profiles, read, search, export |
 | `analyst` | Read-only — list, get by id, search, export |
 
-Enforcement is handled by two middleware functions applied in sequence on every `/api/*` request:
+Role enforcement is handled by two middleware functions in sequence on every `/api/*` request:
 
-1. `authenticate` — verifies the JWT, checks `is_active`, attaches `req.user`
-2. `authorize(role)` — checks `req.user.role` against the required role
+1. `authenticate` — verifies JWT signature, decodes payload, checks `is_active = true` in DB, attaches `req.user`
+2. `authorize(role)` — compares `req.user.role` against the required role, returns `403` if mismatch
 
 ```js
-// Applied at the route level
-router.post("/",    authenticate, authorize("admin"), handler)
-router.delete("/:id", authenticate, authorize("admin"), handler)
-router.get("/",     authenticate, handler) // any authenticated user
+router.post("/",      authorize("admin"), handler) // admin only
+router.delete("/:id", authorize("admin"), handler) // admin only
+router.get("/",       handler)                     // any authenticated user
 ```
+
+---
+
+## CLI Integration
+
+The CLI (`insighta`) is globally installable and communicates exclusively with this backend.
+
+```bash
+npm install -g insighta-cli
+
+insighta login                               # GitHub OAuth → tokens stored at ~/.insighta/credentials.json
+insighta whoami                              # show current user
+insighta logout                              # invalidate session
+
+insighta profiles list                       # GET /api/profiles
+insighta profiles list --gender male         # with filters
+insighta profiles list --page 2 --limit 20   # with pagination
+insighta profiles get <id>                   # GET /api/profiles/:id
+insighta profiles search "adults from nigeria" # GET /api/profiles/search
+insighta profiles create --name "Ada Lovelace" # POST /api/profiles (admin only)
+insighta profiles export --format csv        # GET /api/profiles/export
+```
+
+The CLI auto-refreshes expired access tokens silently using the stored refresh token. If refresh fails, credentials are cleared and the user is prompted to run `insighta login` again.
+
+---
+
+## Web Portal Integration
+
+The web portal communicates with this backend using HTTP-only cookies. Tokens are never accessible via JavaScript.
+
+- **Login:** browser redirects to `GET /auth/github` → GitHub OAuth → backend sets HTTP-only cookies → redirects to `/dashboard`
+- **API calls:** `withCredentials: true` sends cookies automatically on every request
+- **CSRF:** portal fetches a token from `GET /csrf-token` and sends it as `X-CSRF-Token` on every mutating request
+- **Token refresh:** on `401`, portal silently calls `POST /auth/refresh` (cookie-based) and retries the original request
+- **Logout:** `POST /auth/logout` clears cookies server-side
 
 ---
 

@@ -12,6 +12,7 @@ import { authLimiter, apiLimiter } from "./middleware/rateLimiter.js";
 import { csrfProtection } from "./middleware/csrf.js";
 import authRouter from "./auth/router.js";
 import profilesRouter from "./profiles/router.js";
+import usersRouter from "./users/router.js";
 import apiVersion from "./middleware/apiVersion.js";
 import authenticate from "./middleware/authenticate.js";
 
@@ -56,6 +57,7 @@ app.use("/api", csrfProtection, apiLimiter, apiVersion, authenticate);
 
 // ── Feature routers ─────────────────────────────────────────────────────────
 app.use("/api/profiles", profilesRouter);
+app.use("/api/users",    usersRouter);
 
 // ── 404 fallback ────────────────────────────────────────────────────────────
 app.use((_req, res) =>
