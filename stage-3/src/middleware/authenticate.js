@@ -10,12 +10,19 @@ const getUserById = async (id) => {
 };
 
 export default async function authenticate(req, res, next) {
-  const authHeader = req.headers.authorization;
+  // Support both Bearer token (CLI) and HTTP-only cookie (web portal)
+  let token = null;
 
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return sendError(res, new ApiError(401, "Authorization header missing or malformed"));
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith("Bearer ")) {
+    token = authHeader.split(" ")[1];
+  } else if (req.cookies?.access_token) {
+    token = req.cookies.access_token;
   }
-  const token = authHeader.split(" ")[1];
+
+  if (!token) {
+    return sendError(res, new ApiError(401, "Authentication required"));
+  }
 
   const secretKey = new TextEncoder().encode(process.env.ACCESS_TOKEN_SECRET);
 

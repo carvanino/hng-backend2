@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { sendError, ApiError } from "../utils.js";
+import authenticate from "../middleware/authenticate.js";
 import {
   getRedirectURL,
   exchangeCodeForToken,
@@ -8,22 +9,37 @@ import {
   generateAuthToken,
   generateAndSaveRefreshToken,
   refreshAuthToken,
-  revokeRefreshToken
+  revokeRefreshToken,
 } from "./service.js";
 
 const router = Router();
 
-// - GET /auth/github ────────────────────────────────────────────────────────
+const COOKIE_OPTS = {
+  httpOnly: true,
+  sameSite: "lax",
+  secure: process.env.NODE_ENV === "production",
+};
+
+const setAuthCookies = (res, accessToken, refreshToken) => {
+  res.cookie("access_token",  accessToken,  { ...COOKIE_OPTS, maxAge: Number(process.env.ACCESS_TOKEN_EXPIRY)  * 1000 });
+  res.cookie("refresh_token", refreshToken, { ...COOKIE_OPTS, maxAge: Number(process.env.REFRESH_TOKEN_EXPIRY) * 1000 });
+};
+
+const clearAuthCookies = (res) => {
+  res.clearCookie("access_token");
+  res.clearCookie("refresh_token");
+};
+
+// ── GET /auth/github ────────────────────────────────────────────────────────
 router.get("/github", (req, res) => {
-  const cli_port   = req.query.cli_port ?? null;
+  const cli_port    = req.query.cli_port ?? null;
   const redirectUrl = getRedirectURL(cli_port);
   res.redirect(redirectUrl);
 });
 
-// - GET /auth/github/callback ───────────────────────────────────────────────
+// ── GET /auth/github/callback ───────────────────────────────────────────────
 router.get("/github/callback", async (req, res) => {
   const { code, state } = req.query;
-
   const { valid, cli_port } = validateState(state);
 
   if (!state || !valid) {
@@ -35,9 +51,8 @@ router.get("/github/callback", async (req, res) => {
   }
 
   try {
-    const { accessToken: githubToken, githubUser } = await exchangeCodeForToken(code);
-
-    const user = await findOrCreateUser(githubUser);
+    const { githubUser } = await exchangeCodeForToken(code);
+    const user           = await findOrCreateUser(githubUser);
 
     if (!user.is_active) {
       return sendError(res, new ApiError(403, "Account is deactivated"));
@@ -59,40 +74,52 @@ router.get("/github/callback", async (req, res) => {
       return res.redirect(`http://localhost:${cli_port}/callback?${params.toString()}`);
     }
 
-    // Web flow — return JSON
-    return res.status(200).json({
-      status: "success",
-      data: {
-        access_token:  appAccessToken,
-        refresh_token: refreshToken,
-        user: {
-          id:         user.id,
-          username:   user.username,
-          email:      user.email,
-          avatar_url: user.avatar_url,
-          role:       user.role,
-        },
-      },
-    });
+    // Web flow — set HTTP-only cookies, redirect to portal
+    setAuthCookies(res, appAccessToken, refreshToken);
+    return res.redirect(`${process.env.WEB_PORTAL_URL ?? "http://localhost:5173"}/dashboard`);
+
   } catch (err) {
     console.error("GitHub OAuth error:", err);
     return sendError(res, new ApiError(500, "Failed to authenticate with GitHub"));
   }
 });
 
-// - POST /auth/refresh ─────────────────────────────────────────────────────
-router.post("/refresh", async (req, res) => {
-  const { refreshToken } = req.body;
+// ── GET /auth/me ────────────────────────────────────────────────────────────
+// Web portal uses this to hydrate user state on load
+router.get("/me", authenticate, (req, res) => {
+  return res.json({
+    status: "success",
+    data: {
+      id:         req.user.id,
+      username:   req.user.username,
+      email:      req.user.email,
+      avatar_url: req.user.avatar_url,
+      role:       req.user.role,
+    },
+  });
+});
 
-  if (!refreshToken) {
+// ── POST /auth/refresh ──────────────────────────────────────────────────────
+router.post("/refresh", async (req, res) => {
+  // Accept from body (CLI) or cookie (web)
+  const token = req.body?.refresh_token ?? req.cookies?.refresh_token;
+
+  if (!token) {
     return sendError(res, new ApiError(400, "Refresh token not provided"));
   }
 
   try {
-    const { accessToken, newRefreshToken } = await refreshAuthToken(refreshToken);
-    return res.status(200).json({
-      status: "success",
-      access_token: accessToken,
+    const { accessToken, newRefreshToken } = await refreshAuthToken(token);
+
+    // If request came from web (cookie-based), update cookies
+    if (req.cookies?.refresh_token) {
+      setAuthCookies(res, accessToken, newRefreshToken);
+      return res.json({ status: "success" });
+    }
+
+    return res.json({
+      status:        "success",
+      access_token:  accessToken,
       refresh_token: newRefreshToken,
     });
   } catch (err) {
@@ -101,15 +128,17 @@ router.post("/refresh", async (req, res) => {
   }
 });
 
-// - POST /auth/logout ──────────────────────────────────────────────────────
+// ── POST /auth/logout ───────────────────────────────────────────────────────
 router.post("/logout", async (req, res) => {
-  const { refreshToken } = req.body;
+  // Accept from body (CLI) or cookie (web)
+  const token = req.body?.refresh_token ?? req.cookies?.refresh_token;
 
-  if (!refreshToken) return sendError(res, new ApiError(400, "Refresh token required"));
+  if (!token) return sendError(res, new ApiError(400, "Refresh token required"));
 
   try {
-    await revokeRefreshToken(refreshToken);
-    return res.status(200).json({ status: "success", message: "Logged out successfully" });
+    await revokeRefreshToken(token);
+    clearAuthCookies(res);
+    return res.json({ status: "success", message: "Logged out successfully" });
   } catch (err) {
     console.error("Logout error:", err);
     return sendError(res, new ApiError(500, "Failed to log out"));
