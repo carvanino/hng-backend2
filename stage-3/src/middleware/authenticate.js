@@ -1,5 +1,6 @@
-import { sendError, ApiError } from "../utils.js";
 import { jwtVerify } from "jose";
+import { TextEncoder } from "util";
+import { sendError, ApiError } from "../utils.js";
 import { query } from "../db/index.js";
 
 

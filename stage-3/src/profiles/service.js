@@ -7,6 +7,7 @@
 // ---------------------------------------------------------------------------
 import axios from "axios";
 import { v7 as uuid } from "uuid";
+import { URLSearchParams } from "url";
 
 import { query } from "../db/index.js";
 import { ApiError, classifyAgeGroup, formatProfile } from "../utils.js";
