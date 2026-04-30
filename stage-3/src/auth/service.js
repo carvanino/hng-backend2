@@ -1,33 +1,40 @@
 import axios from "axios";
 import { SignJWT } from "jose";
 import { randomBytes } from "crypto";
+import { TextEncoder } from "util";
 import { v7 as uuid } from "uuid";
+import { URLSearchParams } from "url";
 import { query } from "../db/index.js";
 
 // In-memory state store — { state: expiresAt }
 const pendingStates = new Map();
 const STATE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-export const generateState = () => {
-  const state = randomBytes(16).toString("hex");
+// State format: "<randomHex>" for web, "<randomHex>:<cli_port>" for CLI
+export const generateState = (cli_port = null) => {
+  const random = randomBytes(16).toString("hex");
+  const state  = cli_port ? `${random}:${cli_port}` : random;
   pendingStates.set(state, Date.now() + STATE_TTL_MS);
   return state;
 };
 
+// Returns { valid: boolean, cli_port: string|null }
 export const validateState = (state) => {
   const expiresAt = pendingStates.get(state);
-  if (!expiresAt || Date.now() > expiresAt) return false;
+  if (!expiresAt || Date.now() > expiresAt) return { valid: false, cli_port: null };
   pendingStates.delete(state);
-  return true;
+  const parts    = state.split(":");
+  const cli_port = parts.length === 2 ? parts[1] : null;
+  return { valid: true, cli_port };
 };
 
 
-export const getRedirectURL = () => {
-  const state = generateState();
+export const getRedirectURL = (cli_port = null) => {
+  const state  = generateState(cli_port);
   const params = new URLSearchParams({
-    client_id: process.env.GITHUB_CLIENT_ID,
+    client_id:    process.env.GITHUB_CLIENT_ID,
     redirect_uri: process.env.GITHUB_CALLBACK_URL,
-    scope: "read:user user:email",
+    scope:        "read:user user:email",
     state,
   });
   return `${process.env.GITHUB_OAUTH_URL}?${params.toString()}`;

@@ -15,7 +15,8 @@ const router = Router();
 
 // - GET /auth/github ────────────────────────────────────────────────────────
 router.get("/github", (req, res) => {
-  const redirectUrl = getRedirectURL();
+  const cli_port   = req.query.cli_port ?? null;
+  const redirectUrl = getRedirectURL(cli_port);
   res.redirect(redirectUrl);
 });
 
@@ -23,7 +24,9 @@ router.get("/github", (req, res) => {
 router.get("/github/callback", async (req, res) => {
   const { code, state } = req.query;
 
-  if (!state || !validateState(state)) {
+  const { valid, cli_port } = validateState(state);
+
+  if (!state || !valid) {
     return sendError(res, new ApiError(400, "Invalid or missing state parameter"));
   }
 
@@ -36,20 +39,38 @@ router.get("/github/callback", async (req, res) => {
 
     const user = await findOrCreateUser(githubUser);
 
-    const appAccessToken = await generateAuthToken(user);
-    const refreshToken = await generateAndSaveRefreshToken(user.id);
+    if (!user.is_active) {
+      return sendError(res, new ApiError(403, "Account is deactivated"));
+    }
 
+    const appAccessToken = await generateAuthToken(user);
+    const refreshToken   = await generateAndSaveRefreshToken(user.id);
+
+    // CLI flow — redirect to local server with tokens in query params
+    if (cli_port) {
+      const params = new URLSearchParams({
+        access_token:  appAccessToken,
+        refresh_token: refreshToken,
+        username:      user.username,
+        email:         user.email ?? "",
+        role:          user.role,
+        id:            user.id,
+      });
+      return res.redirect(`http://localhost:${cli_port}/callback?${params.toString()}`);
+    }
+
+    // Web flow — return JSON
     return res.status(200).json({
       status: "success",
       data: {
-        access_token: appAccessToken,
+        access_token:  appAccessToken,
         refresh_token: refreshToken,
         user: {
-          id: user.id,
-          username: user.username,
-          email: user.email,
+          id:         user.id,
+          username:   user.username,
+          email:      user.email,
           avatar_url: user.avatar_url,
-          role: user.role,
+          role:       user.role,
         },
       },
     });
