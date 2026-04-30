@@ -71,12 +71,14 @@ router.get("/github/callback", async (req, res) => {
         role:          user.role,
         id:            user.id,
       });
-      return res.redirect(`http://localhost:${cli_port}/callback?${params.toString()}`);
+      const cliHost = process.env.HOST || "http://127.0.0.1";
+      return res.redirect(`${cliHost}:${cli_port}/callback?${params.toString()}`);
     }
 
     // Web flow — set HTTP-only cookies, redirect to portal
     setAuthCookies(res, appAccessToken, refreshToken);
-    return res.redirect(`${process.env.WEB_PORTAL_URL ?? "http://localhost:5173"}/dashboard`);
+    
+    return res.redirect(`${process.env.WEB_PORTAL_URL}/dashboard`);
 
   } catch (err) {
     console.error("GitHub OAuth error:", err);
